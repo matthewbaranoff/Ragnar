@@ -1,0 +1,104 @@
+---
+title: "Stratified Cox Proportional Models"
+author: "Matthew Baranoff"
+date: '2022-04-04'
+output:
+  html_document:
+    df_print: paged
+  pdf_document: default
+  word_document: default
+pdf_document:
+  number_sections: yes
+  toc: yes
+---
+
+```{r, include=FALSE}
+## Import data
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(kableExtra)
+library(ggplot2)
+library(survminer)
+library(dplyr)
+library(tidyr)
+library(tidyverse)
+library(readxl)
+library(survival)
+library(ggpmisc)
+library(ggforce)
+library(janitor)
+
+setwd('C:\\Users\\matthew.baranoff\\Working\\ragNAR')
+rag <-  read.csv('analytic_cohort.csv')
+
+```
+
+# UDM + CG
+
+```{r, echo = FALSE, warning=TRUE, message=FALSE}
+setwd('C:\\Users\\matthew.baranoff\\Working\\RAGNAR\\Tools')
+load('RagnarOutcome.RData')
+library(gtsummary)
+
+model <- RagnarOutcomes(rag, "_UDM_CG_")
+
+tbl_merge(list(model$cox_unadjusted %>% tbl_regression(exponentiate = TRUE, include = "FGFR"), 
+               model$cox_min_adjusted %>% tbl_regression(exponentiate = TRUE, include = "FGFR"),
+               model$cox_fully_adjusted %>% tbl_regression(exponentiate = TRUE, include = "FGFR")               
+               ),
+              tab_spanner = c("**Unadjusted**", "**Minimally Adjusted**", "**Fully Adjusted**"))
+
+tbl_merge(list(model$cox_unadjusted_delayed %>% tbl_regression(exponentiate = TRUE, include = "FGFR"), 
+               model$cox_min_adjusted_delayed %>% tbl_regression(exponentiate = TRUE, include = "FGFR"),
+               model$cox_fully_adjusted_delayed %>% tbl_regression(exponentiate = TRUE, include = "FGFR")               
+               ),
+              tab_spanner = c("**Delay Unadjusted**", "**Delay Minimally Adjusted**", "**Delay Fully Adjusted**"))
+
+```
+
+# UDM Patients Data
+
+```{r, echo = FALSE, warning=TRUE, message=FALSE}
+setwd('C:\\Users\\matthew.baranoff\\Working\\RAGNAR\\Tools')
+load('RagnarOutcome.RData')
+library(gtsummary)
+
+model <- RagnarOutcomes(rag[which(rag$Patient.Characteristic..Tumor.specific.pt.),], "_UDM_CG_")
+
+tbl_merge(list(model$cox_unadjusted %>% tbl_regression(exponentiate = TRUE, include = "FGFR"), 
+               model$cox_min_adjusted %>% tbl_regression(exponentiate = TRUE, include = "FGFR"),
+               model$cox_fully_adjusted %>% tbl_regression(exponentiate = TRUE, include = "FGFR")               
+               ),
+              tab_spanner = c("**Unadjusted**", "**Minimally Adjusted**", "**Fully Adjusted**"))
+
+tbl_merge(list(model$cox_unadjusted_delayed %>% tbl_regression(exponentiate = TRUE, include = "FGFR"), 
+               model$cox_min_adjusted_delayed %>% tbl_regression(exponentiate = TRUE, include = "FGFR"),
+               model$cox_fully_adjusted_delayed %>% tbl_regression(exponentiate = TRUE, include = "FGFR")               
+               ),
+              tab_spanner = c("**Delay Unadjusted**", "**Delay Minimally Adjusted**", "**Delay Fully Adjusted**"))
+
+```
+
+# CG Database Data
+
+```{r, echo = FALSE, warning=TRUE, message=FALSE}
+setwd('C:\\Users\\matthew.baranoff\\Working\\RAGNAR\\Tools')
+load('RagnarOutcome.RData')
+library(gtsummary)
+
+model <- RagnarOutcomes(rag[which(rag$Patient.Characteristic..Pan.tumor.pt..),], "_UDM_CG_")
+
+tbl_merge(list(model$cox_unadjusted %>% tbl_regression(exponentiate = TRUE, include = "FGFR"), 
+               model$cox_min_adjusted %>% tbl_regression(exponentiate = TRUE, include = "FGFR"),
+               model$cox_fully_adjusted %>% tbl_regression(exponentiate = TRUE, include = "FGFR")               
+               ),
+              tab_spanner = c("**Unadjusted**", "**Minimally Adjusted**", "**Fully Adjusted**"))
+
+tbl_merge(list(model$cox_unadjusted_delayed %>% tbl_regression(exponentiate = TRUE, include = "FGFR"), 
+               model$cox_min_adjusted_delayed %>% tbl_regression(exponentiate = TRUE, include = "FGFR"),
+               model$cox_fully_adjusted_delayed %>% tbl_regression(exponentiate = TRUE, include = "FGFR")               
+               ),
+              tab_spanner = c("**Delay Unadjusted**", "**Delay Minimally Adjusted**", "**Delay Fully Adjusted**"))
+
+```
