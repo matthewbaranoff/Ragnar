@@ -1,19 +1,19 @@
 ---
-title: "RAGNAR PV - KM Plots"
+  title: "RAGNAR PV - KM Plots"
 author: "Preliminary Document"
 date: "Date prepared `r format(Sys.time(), '%d %B, %Y')`"
 header-includes:
-   - usepackage{draftwatermark}
+  - usepackage{draftwatermark}
 output:
   html_document:
-    css: "style.css"
-    df_print: paged
-    theme: yeti
+  css: "style.css"
+df_print: paged
+theme: yeti
 pdf_document:
   number_sections: yes
-  toc: yes
+toc: yes
 ---
-```{r, include=FALSE}
+  ```{r, include=FALSE}
 ## Import data
 library(readxl)
 library(dplyr)
@@ -84,7 +84,7 @@ for(k in unique(rag$Patient.Characteristic...Disease.)) {
   
   ## Selection tumor that have more than > 10 obs for both FGFR status
   if (all(table(temp_rag$Patient.Characteristic...FGFR.Status.) > 10)) {
-      cat('\n\n## Tumor: `', toupper(k), '`\n\n')
+    cat('\n\n## Tumor: `', toupper(k), '`\n\n')
     Pan_Specific_analysis <- RagnarOutcomes(temp_rag,paste0(toupper(k), ' '))
     print(
       ggarrange(Pan_Specific_analysis[[7]], Pan_Specific_analysis[[8]], ncol = 2)
@@ -93,5 +93,4 @@ for(k in unique(rag$Patient.Characteristic...Disease.)) {
 }
 
 ```
-
 

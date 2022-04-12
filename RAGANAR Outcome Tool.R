@@ -11,88 +11,61 @@
 # 
 
 ## Load Needed Packages
-library(ggplot2)
-library(survminer)
-library(dplyr)
-library(tidyr)
-library(tidyverse)
-library(readxl)
-library(survival)
-library(mmtabl2)
-library(ggpmisc)
-library(ggforce)
-library(broom)
-
-#######################################################
-#                                                     #               
-#                 Define Functions                   #
-#                                                     #
-#######################################################
-
-## Function used to set any value with 0.5 to 0
-SetZero <- function(df) {
-  df[] <- apply(df, 
-                MARGIN = c(1, 2),
-                FUN = function(x) {if (x == 0.5) {0}else {x}})
-  return(df)
-}
-
-## Takes two vectors df_logical and df_numeric and return each value that has a true as the df_numeric otherwise return 9999
-ChooseTrue <- function(df_logical, df_numeric) {
-  for(k in 1:ncol(df_logical)) {
-    df_numeric[,k] <-mapply(function(x, y) {if (x) {y}else {9999}},  # defining 9999 as NA for logic later
-                            df_logical[,k], 
-                            df_numeric[,k])
-  }
-  return(df_numeric)
-}
-
-#######################################################
-#                                                     #               
-#            0 Loading and Cleaning                   #
-#                                                     #
-#######################################################
-
-setwd('C:\\Users\\matthew.baranoff\\Working\\ragNAR')
-
-## Read in data from local device
-rag_clean <- read.csv('analytic_cohort.csv')
-baitset_corrected <- read_xlsx('BAITSET Work.xlsx')
-
-## Dataset to be worked on
-rag <- rag_clean
-
-## Correct Baitset value
-baitset_corrected <- baitset_corrected[which(baitset_corrected$patient_id %in% rag$Patient.Identifier),]
-
-## Order Dataset
-baitset_corrected <- baitset_corrected[order(baitset_corrected$patient_id),]
-
-rag[which(rag$Patient.Identifier %in% baitset_corrected$patient_id), 'Patient.Characteristic..Baitset...Recat..'] <-
-  baitset_corrected$corrected_baitset
 
 ## Analysis Function
 RagnarOutcomes <- function(rag, name) {
+  ## Load Needed Packages
+  require(ggplot2)
+  require(survminer)
+  require(dplyr)
+  require(tidyr)
+  require(tidyverse)
+  require(readxl)
+  require(survival)
+  require(ggpmisc)
+  require(ggforce)
+  require(broom)
+  library(survcomp)
   
+  analysis <- list()
+  
+  #######################################################
+  #                                                     #               
+  #                 Define Functions                    #
+  #                                                     #
+  #######################################################
+  
+  ## Function used to set any value with 0.5 to 0
+  SetZero <- function(df) {
+    df[] <- apply(df, 
+                  MARGIN = c(1, 2),
+                  FUN = function(x) {if (x == 0.5) {0}else {x}})
+    return(df)
+  }
+  
+  ## Takes two vectors df_logical and df_numeric and return each value that has a true as the df_numeric otherwise return 9999
+  ChooseTrue <- function(df_logical, df_numeric) {
+    for(k in 1:ncol(df_logical)) {
+      df_numeric[,k] <-mapply(function(x, y) {if (x) {y}else {9999}},  # defining 9999 as NA for logic later
+                              df_logical[,k], 
+                              df_numeric[,k])
+    }
+    return(df_numeric)
+  }
+  
+  #######################################################
+  #                                                     #               
+  #            0 Loading and Cleaning                   #
+  #                                                     #
+  #######################################################
   ## Analysis Function
   
   ## Dataset to be worked on
-  rag <- rag_clean
   rag$'Patient.Characteristic...FGFR.Status.' <- 
     case_when(
       rag$Patient.Characteristic...FGFR.Status. == 'target' ~ 'FGFR +',
       rag$Patient.Characteristic...FGFR.Status. == 'wt' ~ 'FGFR -'
     )
-  
-  ## Correct Baitset value
-  baitset_corrected <- baitset_corrected[which(baitset_corrected$patient_id %in% rag$Patient.Identifier),]
-  
-  ## Order Dataset
-  baitset_corrected <- baitset_corrected[order(baitset_corrected$patient_id),]
-  rag <- rag[order(rag$Patient.Identifier),]
-  
-  rag[which(rag$Patient.Identifier %in% baitset_corrected$patient_id), 'Patient.Characteristic..Baitset...Recat..'] <-
-    baitset_corrected$corrected_baitset 
   
   ## Define outcomes
   outcomes <- data.frame(last_day_clincal = rag$Patient.Outcome..CENSORING.VARIABLE..Last.day.of.clinical.activity..,
@@ -106,6 +79,18 @@ RagnarOutcomes <- function(rag, name) {
                               study_drug = rag$person.time.for.PO5,
                               end_of_data = rag$person.time.for.PO6,
                               death = rag$person.time.for.PO7)
+  
+  #check if any censoring occurs after endofdata -- 0 people
+  nstuff <- nrow(outcomes_days[which(outcomes_days$end_of_data < (outcomes_days$death | 
+                                                                    outcomes_days$selective_FGFR | 
+                                                                    outcomes_days$end_of_data | 
+                                                                    outcomes_days$end_of_data)),])
+  if(nstuff > 0){
+    warning('Censoring occurs after end of data')
+  }else{
+    warning('Censoring does not occur after end of data')
+  }
+  
   
   ## Define delaying
   delay <- data.frame(first_visit = rag$Patient.Outcome..IF.DELAYED.ENTRY..FGFR.Test.Result....or....,
@@ -137,6 +122,10 @@ RagnarOutcomes <- function(rag, name) {
   ## Apply censoring logic
   outcomes_days$censored_date <- 
     apply(outcomes_days[,1:(ncol(outcomes_days)-1)], 1, min)
+  
+  #check where death occurs before last clinical activity - 545 people
+  nstuff <- nrow(outcomes_days[which(outcomes_days$last_day_clincal < outcomes_days$death),])
+  warning(paste('Death occurs before the last day of clincal activity in', nstuff, 'cases', sep = ' '))
   
   ## If death after censord value choose censored date, 1 is defined as death, 0 for censored, no survivors
   outcomes_days$outcome_defined <-
@@ -170,6 +159,9 @@ RagnarOutcomes <- function(rag, name) {
   outcomes_days$days_delay <- delay_days$day
   outcomes_days$is_delayed <- ifelse(delay_days$day == 0, 0, 1)
   
+  nstuff <- nrow(outcomes_days[which(outcomes_days$days_delay > rag$person.time.for.PO7),])
+  warning(paste(nstuff, 'observation(s) have a testf after death', sep = ' '))
+  
   #######################################################
   #                                                     #               
   #        Cox PH models Without Delayed Entry          #
@@ -183,8 +175,9 @@ RagnarOutcomes <- function(rag, name) {
   cox_unadjusted_data$FGFR = factor(cox_unadjusted_data$FGFR, 
                                     levels = c("FGFR -","FGFR +"))
   
-
-  write.csv(tidy(cox_unadjusted), file = paste0('cox_unadjusted', name, Sys.Date(), '.csv'))
+  cox_unadjusted <- coxph(Surv(days, outcome_defined) ~ FGFR, data = cox_unadjusted_data)
+  
+  analysis[['cox_unadjusted']] <- cox_unadjusted 
   
   ## Minimally adjusted model
   cox_min_adjusted_data <- cbind(FGFR = rag$Patient.Characteristic...FGFR.Status., 
@@ -226,7 +219,7 @@ RagnarOutcomes <- function(rag, name) {
   ## Run Min Adjusted model
   cox_min_adjusted <- coxph(Surv(cox_min_adjusted_data$days, cox_min_adjusted_data$outcome_defined) ~ ., data =  
                               cox_min_adjusted_data[,c(1,12:ncol(cox_min_adjusted_data))])
-  write.csv(tidy(cox_min_adjusted), file = paste0('cox_min_adjusted', name, Sys.Date(), '.csv'))
+  analysis[['cox_min_adjusted']] <- cox_min_adjusted
   
   ## fully adjusted model
   cox_fully_adjusted_data <- cbind(FGFR = rag$Patient.Characteristic...FGFR.Status., 
@@ -258,6 +251,10 @@ RagnarOutcomes <- function(rag, name) {
   ## Choose referent type as wt
   cox_fully_adjusted_data$FGFR = factor(cox_fully_adjusted_data$FGFR, 
                                         levels = c("FGFR -","FGFR +"))
+  ## Set date_of_meta to factor level variable
+  cox_fully_adjusted_data <- cox_fully_adjusted_data %>% 
+    mutate(date_of_meta = factor(date_of_meta)) %>% 
+    mutate(group_stage = factor(group_stage))
   
   ## Remove sex from cancers that inlcude only one sex, same for cancers
   if (length(unique(cox_fully_adjusted_data$sex)) == 1) {
@@ -268,16 +265,19 @@ RagnarOutcomes <- function(rag, name) {
     cox_fully_adjusted_data <- cox_fully_adjusted_data %>% 
       select(-'cancer_type')
   }
-  
-  ## Set date_of_meta to factor level variable
-  cox_fully_adjusted_data <- cox_fully_adjusted_data %>% 
-    mutate(date_of_meta = factor(date_of_meta)) %>% 
-    mutate(group_stage = factor(group_stage))
+  if (length(unique(cox_fully_adjusted_data$horm_flag)) == 1) {
+    cox_fully_adjusted_data <- cox_fully_adjusted_data %>% 
+      select(-'horm_flag')
+  }
+  if (length(unique(cox_fully_adjusted_data$group_stage)) == 1) {
+    cox_fully_adjusted_data <- cox_fully_adjusted_data %>% 
+      select(-'group_stage')
+  }
   
   ## Run Min Adjusted model
   cox_fully_adjusted <- coxph(Surv(cox_fully_adjusted_data$days, cox_fully_adjusted_data$outcome_defined) ~ ., data =  
                                 cox_fully_adjusted_data[,c(1,12:ncol(cox_fully_adjusted_data))])
-  write.csv(tidy(cox_fully_adjusted), file = paste0('cox_fully_adjusted', name, Sys.Date(), '.csv'))
+  analysis[['cox_fully_adjusted']] <- cox_fully_adjusted 
   
   #######################################################
   #                                                     #               
@@ -292,8 +292,7 @@ RagnarOutcomes <- function(rag, name) {
                                        time2 = days, 
                                        event = outcome_defined) ~ FGFR, 
                                   data = cox_unadjusted_data_delay)
-  
-  write.csv(tidy(cox_unadjusted_delayed), file = paste0('cox_unadjusted_delayed', name, Sys.Date(), '.csv'))
+  analysis[['cox_unadjusted_delayed']] <- cox_unadjusted_delayed 
   
   ## Minimally adjusted model
   ## Remove sex from cancers that inlcude only one sex
@@ -304,7 +303,8 @@ RagnarOutcomes <- function(rag, name) {
                                           time2 = cox_min_adjusted_data_delay$days, 
                                           event = cox_min_adjusted_data_delay$outcome_defined) ~ ., 
                                      data = cox_min_adjusted_data_delay[,c(1,12:ncol(cox_min_adjusted_data_delay))])
-  write.csv(tidy(cox_min_adjusted_delayed), file = paste0('cox_min_adjusted_delayed', name, Sys.Date(), '.csv'))
+  
+  analysis[['cox_min_adjusted_delayed']] <- cox_min_adjusted_delayed 
   
   ## Fully adjusted model
   ## Remove sex from cancers that inlcude only one sex
@@ -315,8 +315,7 @@ RagnarOutcomes <- function(rag, name) {
                                             time2 = cox_fully_adjusted_data_delay$days, 
                                             event = cox_fully_adjusted_data_delay$outcome_defined) ~ ., 
                                        data = cox_fully_adjusted_data_delay[,c(1,12:ncol(cox_fully_adjusted_data_delay))])
-  write.csv(tidy(cox_fully_adjusted_delayed), 
-            file = paste0('cox_fully_adjusted_delayed', name, Sys.Date(), '.csv'))
+  analysis[['cox_fully_adjusted_delayed']] <- cox_fully_adjusted_delayed
   
   #######################################################
   #                                                     #               
@@ -452,49 +451,30 @@ RagnarOutcomes <- function(rag, name) {
       ylab('') + xlab("") + ylim(0,limit)
     
     ## Create and save KM table and KM plot
-    png(file = paste0('KM', name_var, ".png"), height = 600, width = 1000)
-    print(ggarrange(KMmain, KMtable, heights = c(2, 1), 
-                    ncol = 1, nrow = 2, align = 'v'))
-    dev.off()
+    return(ggarrange(KMmain, KMtable, heights = c(2, 1), 
+                     ncol = 1, nrow = 2, align = 'v'))
   }
   
   analysis[[paste0("No_Delay", name)]] <- 
-    KMcreate(rag, outcomes_days$days, paste0("No_Delay", name, Sys.Date()), paste0("No_Delay", name, Sys.Date()))
+    KMcreate(rag, outcomes_days$days, none, 
+             str_replace_all(paste0("No Delay ", name, Sys.Date()), "_", " "))
   
   outcomes_days <- outcomes_days[which(outcomes_days$days > outcomes_days$days_delay),]
   analysis[[paste0("With_Delay", name)]] <- 
-    KMcreate(rag, outcomes_days$days, paste0("With_Delay", name, Sys.Date()), paste0("With_Delay", name, Sys.Date()), delay = TRUE)
-}
-
-### Run analysis for Tumor Specific, Pan Tumor, and both
-dir.create(paste0('C:\\Users\\matthew.baranoff\\Working\\ragNAR\\Outputs\\Pan Tumor + Tumor Specific\\', Sys.Date()))
-setwd(paste0('C:\\Users\\matthew.baranoff\\Working\\ragNAR\\Outputs\\Pan Tumor + Tumor Specific\\', Sys.Date()))
-RagnarOutcomes(rag,"_UDM_CG_")
-
-rag_tumor_specific <- rag[which(rag$Patient.Characteristic..Tumor.specific.pt.),]
-dir.create(paste0('C:\\Users\\matthew.baranoff\\Working\\ragNAR\\Outputs\\Tumor Specific\\', Sys.Date()))
-setwd(paste0('C:\\Users\\matthew.baranoff\\Working\\ragNAR\\Outputs\\Tumor Specific\\', Sys.Date()))
-RagnarOutcomes(rag_tumor_specific,"_CG_")
-
-rag_tumor_pan <- rag[which(rag$Patient.Characteristic..Pan.tumor.pt..),]
-dir.create(paste0('C:\\Users\\matthew.baranoff\\Working\\ragNAR\\Outputs\\Pan Tumor\\', Sys.Date()))
-setwd(paste0('C:\\Users\\matthew.baranoff\\Working\\ragNAR\\Outputs\\Pan Tumor\\', Sys.Date()))
-RagnarOutcomes(rag_tumor_pan, "_UDM_")
-
-## Run analysis for each tumor type
-
-setwd('C:\\Users\\matthew.baranoff\\Working\\ragNAR\\Outputs\\Tumor Types')
-for(k in unique(rag$Patient.Characteristic...Disease.)) {
-  print(k)
-  temp_rag <- rag[which(rag$Patient.Characteristic...Disease. == k),]
+    KMcreate(rag, outcomes_days$days, none, 
+             str_replace_all(paste0("With Delay ", name, Sys.Date()), "_", " "), is_delay = TRUE)
   
-  if (all(table(temp_rag$Patient.Characteristic...FGFR.Status.) > 10)) {
-    dir.create(paste0('C:\\Users\\matthew.baranoff\\Working\\ragNAR\\Outputs\\Tumor Types\\',str_remove_all(k, ":")))
-    setwd(paste0('C:\\Users\\matthew.baranoff\\Working\\ragNAR\\Outputs\\Tumor Types\\',str_remove_all(k, ":")))
-    dir.create(paste0('C:\\Users\\matthew.baranoff\\Working\\ragNAR\\Outputs\\Tumor Types\\',str_remove_all(k, ":"), '\\', Sys.Date()))
-    setwd(paste0('C:\\Users\\matthew.baranoff\\Working\\ragNAR\\Outputs\\Tumor Types\\',str_remove_all(k, ":"), '\\', Sys.Date()))
-    RagnarOutcomes(temp_rag, paste0('_', str_remove_all(k, ":"), '_'))
+  #check where death occurs after endofdata - 0 people
+  if(nrow(outcomes_days[which(outcomes_days$end_of_data < outcomes_days$death),]) > 0){
+    warning('End of Data Occurs Before Death')
+  }else{
+    warning('End of Data Does not Occurs Before Death')
   }
+  return(analysis)
 }
+
+
+setwd('C:\\Users\\matthew.baranoff\\Working\\RAGNAR\\Tools')
+save(RagnarOutcomes, file = 'RagnarOutcome.RData')
 
 
